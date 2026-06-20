@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BTC/USD AI Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c10;
+    --surface:#12151b;
+    --surface2:#171b22;
+    --border:#1f242c;
+    --text:#e8eaed;
+    --text2:#8b92a0;
+    --text3:#5a6170;
+    --accent:#f7931a;
+    --accent-dim:#7a4d0e;
+    --buy:#16c784;
+    --sell:#ea3943;
+    --buy-bg:rgba(22,199,132,0.1);
+    --sell-bg:rgba(234,57,67,0.1);
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding-bottom:90px;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* Ticker header */
+  header{
+    position:sticky; top:0; z-index:50;
+    background:linear-gradient(180deg, #0d1015 0%, #0a0c10 100%);
+    border-bottom:1px solid var(--border);
+    padding:14px 16px 12px;
+  }
+  .ticker-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .ticker-left{display:flex; align-items:center; gap:10px;}
+  .btc-icon{
+    width:34px; height:34px; border-radius:50%;
+    background:linear-gradient(135deg,#f7931a,#c9700a);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:16px; color:#0a0c10;
+    flex-shrink:0;
+  }
+  .pair-name{font-size:13px; color:var(--text2); font-weight:600; letter-spacing:0.3px;}
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--buy);
+    display:inline-block; margin-right:5px;
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(22,199,132,0.5);}50%{opacity:0.6;box-shadow:0 0 0 4px rgba(22,199,132,0);}}
+  .price-block{text-align:right;}
+  .price{font-size:26px; font-weight:700; letter-spacing:-0.5px; transition:color 0.3s;}
+  .change{font-size:12px; font-weight:600; margin-top:2px;}
+  .flash-up{animation:flashUp 0.6s ease;}
+  .flash-down{animation:flashDown 0.6s ease;}
+  @keyframes flashUp{0%{color:var(--buy);}100%{color:var(--text);}}
+  @keyframes flashDown{0%{color:var(--sell);}100%{color:var(--text);}}
+
+  .sub-row{display:flex; gap:8px; margin-top:10px; overflow-x:auto;}
+  .pill{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:20px; padding:5px 11px;
+    font-size:11px; color:var(--text2); white-space:nowrap;
+    display:flex; align-items:center; gap:5px;
+  }
+  .pill b{color:var(--text); font-weight:700;}
+  .fng-fear{color:var(--sell);} .fng-greed{color:var(--buy);} .fng-neutral{color:var(--accent);}
+
+  main{padding:16px;}
+  .card{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:16px; margin-bottom:14px;
+  }
+  .card-title{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text3); font-weight:700; margin-bottom:12px;}
+
+  /* Signal card */
+  .signal-badge{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 18px; border-radius:10px; font-size:20px; font-weight:800;
+    letter-spacing:1px; margin-bottom:10px;
+  }
+  .signal-buy{background:var(--buy-bg); color:var(--buy); border:1px solid rgba(22,199,132,0.3);}
+  .signal-sell{background:var(--sell-bg); color:var(--sell); border:1px solid rgba(234,57,67,0.3);}
+  .signal-hold{background:rgba(247,147,26,0.1); color:var(--accent); border:1px solid rgba(247,147,26,0.3);}
+  .confidence-bar{height:6px; background:var(--surface2); border-radius:4px; overflow:hidden; margin:8px 0 14px;}
+  .confidence-fill{height:100%; border-radius:4px; transition:width 0.5s;}
+  .levels{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:6px;}
+  .level-box{background:var(--surface2); border-radius:10px; padding:10px; text-align:center;}
+  .level-label{font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;}
+  .level-val{font-size:14px; font-weight:700;}
+  .warn-note{
+    margin-top:12px; padding:9px 11px; background:rgba(247,147,26,0.08);
+    border-left:3px solid var(--accent); border-radius:6px;
+    font-size:12px; color:#d9ad6e; line-height:1.5;
+  }
+
+  /* sparkline */
+  canvas#spark{width:100%; height:60px; display:block; margin-top:10px;}
+
+  /* tabs */
+  .tabs{display:flex; gap:6px; margin-bottom:14px;}
+  .tab-btn{
+    flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text2);
+    padding:10px 4px; border-radius:10px; font-size:12px; font-weight:600;
+    text-align:center; cursor:pointer;
+  }
+  .tab-btn.active{background:var(--accent); color:#1a1100; border-color:var(--accent);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* multi timeframe */
+  .tf-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .tf-card{background:var(--surface2); border-radius:10px; padding:12px;}
+  .tf-name{font-size:11px; color:var(--text3); font-weight:700; margin-bottom:6px;}
+  .tf-trend{font-size:15px; font-weight:800; margin-bottom:4px;}
+  .tf-trend.up{color:var(--buy);} .tf-trend.down{color:var(--sell);}
+  .tf-detail{font-size:11px; color:var(--text2);}
+  .tf-fresh{display:inline-block; margin-top:5px; font-size:9px; padding:2px 6px; border-radius:8px; background:rgba(247,147,26,0.15); color:var(--accent); font-weight:700;}
+
+  /* AI engine */
+  .seg{display:flex; background:var(--surface2); border-radius:10px; padding:3px; margin-bottom:12px;}
+  .seg-btn{flex:1; text-align:center; padding:9px; border-radius:8px; font-size:13px; font-weight:600; color:var(--text2); cursor:pointer;}
+  .seg-btn.active{background:var(--accent); color:#1a1100;}
+  input[type=password], input[type=text], input[type=number], select{
+    width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    padding:11px 12px; border-radius:9px; font-size:13px; margin-bottom:10px;
+    font-family:'Inter',sans-serif;
+  }
+  input::placeholder{color:var(--text3);}
+  label{font-size:11px; color:var(--text2); font-weight:600; display:block; margin-bottom:6px;}
+  .btn{
+    width:100%; background:var(--accent); color:#1a1100; border:none;
+    padding:13px; border-radius:10px; font-size:14px; font-weight:700;
+    cursor:pointer; letter-spacing:0.2px;
+  }
+  .btn:disabled{opacity:0.5;}
+  .btn-secondary{background:var(--surface2); color:var(--text); border:1px solid var(--border);}
+  .ai-output{
+    margin-top:12px; background:var(--surface2); border-radius:10px; padding:13px;
+    font-size:13px; line-height:1.6; color:var(--text); white-space:pre-wrap; min-height:40px;
+  }
+  .ai-output.empty{color:var(--text3); font-style:italic;}
+  .small-note{font-size:11px; color:var(--text3); margin-top:8px; line-height:1.5;}
+
+  /* journal */
+  .journal-form{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .journal-form .full{grid-column:1/-1;}
+  .stats-row{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;}
+  .stat-box{background:var(--surface2); border-radius:10px; padding:12px; text-align:center;}
+  .stat-val{font-size:20px; font-weight:800;}
+  .stat-label{font-size:10px; color:var(--text3); text-transform:uppercase; margin-top:3px;}
+  .trade-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:11px 0; border-bottom:1px solid var(--border);
+  }
+  .trade-item:last-child{border-bottom:none;}
+  .trade-side{font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;}
+  .side-buy{background:var(--buy-bg); color:var(--buy);}
+  .side-sell{background:var(--sell-bg); color:var(--sell);}
+  .trade-meta{font-size:11px; color:var(--text3); margin-top:2px;}
+  .result-win{color:var(--buy); font-weight:700; font-size:12px;}
+  .result-loss{color:var(--sell); font-weight:700; font-size:12px;}
+  .result-be{color:var(--text2); font-weight:700; font-size:12px;}
+  .del-btn{background:none; border:none; color:var(--text3); font-size:16px; padding:4px 8px; cursor:pointer;}
+  .empty-state{text-align:center; padding:30px 10px; color:var(--text3); font-size:13px;}
+
+  .reminder-card{
+    background:linear-gradient(135deg, rgba(247,147,26,0.07), rgba(247,147,26,0.02));
+    border:1px solid rgba(247,147,26,0.2);
+  }
+  .reminder-list{font-size:12.5px; color:var(--text2); line-height:1.9; padding-left:18px;}
+
+  footer{padding:16px; text-align:center; font-size:10.5px; color:var(--text3);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="ticker-row">
+    <div class="ticker-left">
+      <div class="btc-icon">₿</div>
+      <div>
+        <div class="pair-name"><span class="live-dot"></span>BTC/USD</div>
+      </div>
+    </div>
+    <div class="price-block">
+      <div class="price mono" id="priceEl">--</div>
+      <div class="change mono" id="changeEl">--</div>
+    </div>
+  </div>
+  <div class="sub-row">
+    <div class="pill" id="fngPill">😐 Fear &amp; Greed: <b id="fngVal">--</b></div>
+    <div class="pill">RSI 1H: <b id="rsiPill">--</b></div>
+    <div class="pill">Update: <b id="lastUpdate" class="mono">--</b></div>
+  </div>
+</header>
+
+<main>
+
+  <div class="tabs">
+    <div class="tab-btn active" data-tab="dashboard">Sinyal</div>
+    <div class="tab-btn" data-tab="tf">Multi-TF</div>
+    <div class="tab-btn" data-tab="ai">AI Engine</div>
+    <div class="tab-btn" data-tab="journal">Jurnal</div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="tab-panel active" id="panel-dashboard">
+    <div class="card">
+      <div class="card-title">Sinyal Saat Ini</div>
+      <div id="signalBadge" class="signal-badge signal-hold">MENGANALISIS...</div>
+      <div class="confidence-bar"><div class="confidence-fill" id="confFill" style="width:0%; background:var(--accent);"></div></div>
+      <div class="levels">
+        <div class="level-box"><div class="level-label">Entry</div><div class="level-val mono" id="lvEntry">--</div></div>
+        <div class="level-box"><div class="level-label">Stop Loss</div><div class="level-val mono" id="lvSL" style="color:var(--sell);">--</div></div>
+        <div class="level-box"><div class="level-label">Take Profit</div><div class="level-val mono" id="lvTP" style="color:var(--buy);">--</div></div>
+      </div>
+      <div class="warn-note" id="warnNote" style="display:none;"></div>
+      <canvas id="spark" height="60"></canvas>
+      <button class="btn" style="margin-top:12px;" id="refreshBtn">🔄 Refresh Analisis</button>
+    </div>
+
+    <div class="card reminder-card">
+      <div class="card-title">Pengingat Disiplin</div>
+      <ul class="reminder-list">
+        <li>Tunggu candle close dulu sebelum entry, jangan buru-buru</li>
+        <li>Selalu pasang Stop Loss — tanpa terkecuali</li>
+        <li>Kalau posisi minus, jangan di-average, ikuti SL</li>
+        <li>Gunakan lot kecil (0.01–0.10) sesuai gaya kamu</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- MULTI TIMEFRAME -->
+  <div class="tab-panel" id="panel-tf">
+    <div class="card">
+      <div class="card-title">Konfluensi Multi-Timeframe</div>
+      <div class="tf-grid" id="tfGrid">
+        <div class="empty-state">Memuat data timeframe...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI ENGINE -->
+  <div class="tab-panel" id="panel-ai">
+    <div class="card">
+      <div class="card-title">Pilih AI Engine</div>
+      <div class="seg">
+        <div class="seg-btn active" data-engine="groq">Groq (Llama)</div>
+        <div class="seg-btn" data-engine="claude">Claude</div>
+      </div>
+      <label>API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="Masukkan API key kamu">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="saveKeyChk" style="width:auto; margin:0;"> Simpan key di HP ini (localStorage)
+      </label>
+      <button class="btn" id="aiAnalyzeBtn" style="margin-top:6px;">🤖 Minta Analisis AI</button>
+      <div class="ai-output empty" id="aiOutput">Hasil analisis AI akan muncul di sini. AI akan diberi data teknikal (EMA, RSI, ATR, konfluensi multi-TF) lalu diminta memberi opini & alasan.</div>
+      <div class="small-note" id="engineNote">Groq: model Llama 3.3 70B, biasanya bisa dipanggil langsung dari browser (CORS friendly).</div>
+    </div>
+  </div>
+
+  <!-- JOURNAL -->
+  <div class="tab-panel" id="panel-journal">
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-val" id="statTotal">0</div><div class="stat-label">Total Trade</div></div>
+      <div class="stat-box"><div class="stat-val" id="statWinrate" style="color:var(--accent);">0%</div><div class="stat-label">Win Rate</div></div>
+      <div class="stat-box"><div class="stat-val" id="statPnl">0</div><div class="stat-label">W / L</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Catat Trade Baru</div>
+      <div class="journal-form">
+        <div>
+          <label>Side</label>
+          <select id="jSide"><option value="BUY">BUY</option><option value="SELL">SELL</option></select>
+        </div>
+        <div>
+          <label>Hasil</label>
+          <select id="jResult"><option value="WIN">Win</option><option value="LOSS">Loss</option><option value="BE">Break Even</option></select>
+        </div>
+        <div>
+          <label>Entry</label>
+          <input type="number" id="jEntry" placeholder="65000" step="0.01">
+        </div>
+        <div>
+          <label>Exit</label>
+          <input type="number" id="jExit" placeholder="65800" step="0.01">
+        </div>
+        <div class="full">
+          <label>Catatan (opsional)</label>
+          <input type="text" id="jNote" placeholder="mis. ikut sinyal multi-TF buy">
+        </div>
+      </div>
+      <button class="btn" id="addTradeBtn">+ Simpan Trade</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Riwayat Trade</div>
+      <div id="tradeList"><div class="empty-state">Belum ada trade tercatat</div></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>BTC/USD AI Bot · Data: Binance Public API · Bukan saran finansial, selalu manage risiko sendiri.</footer>
+
+<script>
+/* ====================== CONFIG ====================== */
+const SYMBOL = "BTCUSDT";
+const TF_LIST = [
+  {key:"1d", label:"Daily (D1)"},
+  {key:"4h", label:"4 Jam (H4)"},
+  {key:"1h", label:"1 Jam (H1)"},
+  {key:"15m", label:"15 Menit (M15)"}
+];
+
+let state = {
+  price: null,
+  prevPrice: null,
+  change24h: null,
+  tfData: {},
+  primaryATR: null,
+  primaryRSI: null,
+  signal: null,
+  sparkCloses: []
+};
+
+/* ====================== INDICATORS ====================== */
+function calcEMA(closes, period){
+  const k = 2/(period+1);
+  let ema = closes[0];
+  const series = [ema];
+  for(let i=1;i<closes.length;i++){
+    ema = closes[i]*k + ema*(1-k);
+    series.push(ema);
+  }
+  return series;
+}
+
+function calcRSI(closes, period=14){
+  if(closes.length < period+1) return 50;
+  let gains=[], losses=[];
+  for(let i=1;i<closes.length;i++){
+    const diff = closes[i]-closes[i-1];
+    gains.push(Math.max(diff,0));
+    losses.push(Math.max(-diff,0));
+  }
+  let avgGain = gains.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  let avgLoss = losses.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period;i<gains.length;i++){
+    avgGain = (avgGain*(period-1)+gains[i])/period;
+    avgLoss = (avgLoss*(period-1)+losses[i])/period;
+  }
+  if(avgLoss===0) return 100;
+  const rs = avgGain/avgLoss;
+  return 100 - (100/(1+rs));
+}
+
+function calcATR(highs, lows, closes, period=14){
+  let trs=[];
+  for(let i=1;i<closes.length;i++){
+    const tr = Math.max(
+      highs[i]-lows[i],
+      Math.abs(highs[i]-closes[i-1]),
+      Math.abs(lows[i]-closes[i-1])
+    );
+    trs.push(tr);
+  }
+  let atr = trs.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period;i<trs.length;i++){
+    atr = (atr*(period-1)+trs[i])/period;
+  }
+  return atr;
+}
+
+/* ====================== DATA FETCH ====================== */
+async function fetchPrice(){
+  try{
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${SYMBOL}`);
+    const d = await res.json();
+    state.prevPrice = state.price;
+    state.price = parseFloat(d.lastPrice);
+    state.change24h = parseFloat(d.priceChangePercent);
+    renderTicker();
+  }catch(e){
+    document.getElementById('priceEl').textContent = "Error";
+    console.error("fetchPrice error", e);
+  }
+}
+
+async function fetchKlines(interval, limit=100){
+  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${interval}&limit=${limit}`);
+  const raw = await res.json();
+  return {
+    opens: raw.map(r=>parseFloat(r[1])),
+    highs: raw.map(r=>parseFloat(r[2])),
+    lows: raw.map(r=>parseFloat(r[3])),
+    closes: raw.map(r=>parseFloat(r[4])),
+  };
+}
+
+async function fetchFearGreed(){
+  try{
+    const res = await fetch("https://api.alternative.me/fng/?limit=1");
+    const d = await res.json();
+    const item = d.data[0];
+    const val = item.value;
+    const cls = item.value_classification;
+    const fngEl = document.getElementById('fngVal');
+    const pillEl = document.getElementById('fngPill');
+    fngEl.textContent = `${val} (${cls})`;
+    pillEl.classList.remove('fng-fear','fng-greed','fng-neutral');
+    if(val < 40) pillEl.classList.add('fng-fear');
+    else if(val > 60) pillEl.classList.add('fng-greed');
+    else pillEl.classList.add('fng-neutral');
+  }catch(e){
+    document.getElementById('fngVal').textContent = "N/A";
+  }
+}
+
+/* ====================== ANALYSIS ====================== */
+async function runFullAnalysis(){
+  document.getElementById('tfGrid').innerHTML = '<div class="empty-state">Memuat data timeframe...</div>';
+  let bullishCount = 0;
+  let tfResults = [];
+
+  for(const tf of TF_LIST){
+    try{
+      const k = await fetchKlines(tf.key, 100);
+      const emaFast = calcEMA(k.closes, 9);
+      const emaSlow = calcEMA(k.closes, 21);
+      const last = emaFast.length-1;
+      const trendUp = emaFast[last] > emaSlow[last];
+      const prevTrendUp = emaFast[last-1] > emaSlow[last-1];
+      const freshCross = trendUp !== prevTrendUp;
+      const rsi = calcRSI(k.closes, 14);
+      if(trendUp) bullishCount++;
+
+      tfResults.push({
+        key: tf.key, label: tf.label, trendUp, rsi, freshCross,
+        emaFast: emaFast[last], emaSlow: emaSlow[last]
+      });
+
+      if(tf.key === "1h"){
+        state.primaryATR = calcATR(k.highs, k.lows, k.closes, 14);
+        state.primaryRSI = rsi;
+        state.sparkCloses = k.closes.slice(-50);
+      }
+    }catch(e){
+      console.error("TF fetch error", tf.key, e);
+    }
+  }
+
+  state.tfData = tfResults;
+  renderTimeframes(tfResults);
+
+  const total = tfResults.length || 4;
+  let signalType, confidence;
+  if(bullishCount >= 3){ signalType = "BUY"; confidence = Math.round((bullishCount/total)*100); }
+  else if(bullishCount <= 1){ signalType = "SELL"; confidence = Math.round(((total-bullishCount)/total)*100); }
+  else { signalType = "HOLD"; confidence = 50; }
+
+  let warn = "";
+  if(signalType === "BUY" && state.primaryRSI > 70) warn = "⚠️ RSI 1H sudah overbought (>70). Pertimbangkan tunggu pullback sebelum entry.";
+  if(signalType === "SELL" && state.primaryRSI < 30) warn = "⚠️ RSI 1H sudah oversold (<30). Pertimbangkan tunggu pantulan sebelum entry.";
+
+  const price = state.price;
+  const atr = state.primaryATR || price*0.005;
+  let entry, sl, tp;
+  if(signalType === "BUY"){
+    entry = price; sl = price - 1.5*atr; tp = price + 3*atr;
+  } else if(signalType === "SELL"){
+    entry = price; sl = price + 1.5*atr; tp = price - 3*atr;
+  } else {
+    entry = price; sl = price - 1.5*atr; tp = price + 1.5*atr;
+  }
+
+  state.signal = {type: signalType, confidence, entry, sl, tp, warn};
+  renderSignal();
+  drawSpark();
+}
+
+/* ====================== RENDER ====================== */
+function renderTicker(){
+  const priceEl = document.getElementById('priceEl');
+  const changeEl = document.getElementById
